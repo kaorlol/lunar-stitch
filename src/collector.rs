@@ -1,3 +1,8 @@
+// Top level suggestions for you:
+//	1. Make your include paths shorter. (i.e. ast::Suffix::Index => Suffix::Index or Index)
+//	2. I would hihgly suggest figuring a deabstraction pattern; Reading and writting your code is not fun.
+//	3. Better comments :)
+
 use full_moon::{
 	ast,
 	node::Node as _,
@@ -77,9 +82,10 @@ impl VisitorMut for AcquireCollector {
 		if self.contains_acquire(call.prefix()) {
 			let path = match self.grab_acquire_path(&call) {
 				Some(p) if p != self.input && p != self.output => p,
-				_ => panic!("Invalid acquire path"),
+				None => panic!("Invalid acquire path"),
 			};
 
+			// TODO: Add implicit panic behavior
 			if std::fs::exists(&path).unwrap() {
 				let ast = self.processed_cache.entry(path.clone()).or_insert_with(|| {
 					info!("Parsing {path}");
@@ -87,11 +93,15 @@ impl VisitorMut for AcquireCollector {
 						.unwrap_or_else(|_| panic!("Failed to parse {path}"))
 				});
 
+				// TODO: Odds are, using `let mut suffixes: Vec<_> = ...` will result in a cleaner line.
 				let mut suffixes = call.suffixes().cloned().collect::<Vec<_>>();
+				
 				if let Some(last_suffix) = suffixes.last_mut() {
 					match last_suffix {
 						ast::Suffix::Call(call) => {
+							// TODO: Same as line r:-6
 							let tokens = call.tokens().cloned().collect::<Vec<_>>();
+							
 							process_tokens(tokens, &mut self.semi_colons, |trivia| {
 								if let ast::Call::AnonymousCall(args) = call {
 									match args {
@@ -110,6 +120,8 @@ impl VisitorMut for AcquireCollector {
 												arguments: arguments.clone(),
 											};
 										}
+
+										// TODO: Use todo!(), unless if nature is un-warranted.
 										_ => (),
 									}
 								}
