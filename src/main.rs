@@ -14,7 +14,6 @@ use spdlog::{debug, info};
 
 mod args;
 use args::Args;
-use clap::Parser;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
 	log::use_formatter();
@@ -22,8 +21,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let args = Args::parse();
 	if args.input == args.output {
 		return Err("Input and output cannot be the same".into());
-	}
+	};
 
+	debug!("Root: {}", args.root);
 	debug!("Input: {}", args.input);
 	debug!("Output: {}", args.output);
 
@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 	info!("Parsing main.lua");
 	let time = Instant::now();
 	let ast = full_moon::parse(input.as_str()).unwrap();
-	let mut collector = AcquireCollector::new(args.input, args.output);
+	let mut collector = AcquireCollector::new(args.root, args.input, args.output);
 	let bundled_ast = collector.visit_ast(ast);
 
 	info!(

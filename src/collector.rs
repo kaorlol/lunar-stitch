@@ -8,6 +8,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use spdlog::info;
 
 pub struct AcquireCollector {
+	pub root: String,
 	pub input: String,
 	pub output: String,
 	pub processed_cache: FxHashMap<String, ast::Ast>,
@@ -17,13 +18,14 @@ pub struct AcquireCollector {
 
 impl Default for AcquireCollector {
 	fn default() -> Self {
-		Self::new("main.lua".into(), "bundled.lua".into())
+		Self::new(".".into(), "main.lua".into(), "bundled.lua".into())
 	}
 }
 
 impl AcquireCollector {
-	pub fn new(input: String, output: String) -> Self {
+	pub fn new(root: String, input: String, output: String) -> Self {
 		Self {
+			root,
 			input,
 			output,
 			processed_cache: FxHashMap::default(),
@@ -49,7 +51,7 @@ impl AcquireCollector {
 
 			call.tokens().find_map(|token| {
 				if let TokenType::StringLiteral { literal, .. } = token.token_type() {
-					return Some(literal.to_string());
+					return Some(format!("{}/{}", self.root, literal.to_string()));
 				}
 				None
 			})
