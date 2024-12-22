@@ -1,0 +1,17 @@
+[package]
+name = "lunar-stitch"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies.spdlog-rs]
+version = "0.4.0"
+features = ["source-location", "log"]
+
+[dependencies]
+cargo = "0.84.0"
+clap = { version = "4.5.23", features = ["derive"] }
+darklua = "0.14.1"
+full_moon = { version = "1.1.2", features = ["roblox"] }
+install = "0.0.0"
+rustc-hash = "2.1.0"
+# stylua = { version = "2.0.2", features = ["luau"] }
