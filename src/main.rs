@@ -6,7 +6,7 @@ use std::time::Instant;
 use darklua_core::{Configuration, GeneratorParameters, Options, Resources};
 
 mod collector;
-use collector::AcquireCollector;
+use collector::AcquireParser;
 
 mod log;
 use full_moon::visitors::VisitorMut as _;
@@ -38,18 +38,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 	info!("Parsing main.lua");
 	let time = Instant::now();
 	let ast = full_moon::parse(input.as_str()).unwrap();
-	let mut collector = AcquireCollector::new(args.root, args.input, args.output);
-	let bundled_ast = collector.visit_ast(ast);
+	let mut parser = AcquireParser::new(args.root, args.input, args.output);
+	let bundled_ast = parser.visit_ast(ast);
 
 	info!(
 		"Took {} seconds to bundle {} unique files and {} acquire calls",
 		time.elapsed().as_secs_f64(),
-		collector.processed_cache.len(),
-		collector.count
+		parser.processed_cache.len(),
+		parser.count
 	);
 
-	info!("Writing to {}", collector.output);
-	std::fs::write(&collector.output, bundled_ast.to_string()).unwrap();
+	info!("Writing to {}", parser.output);
+	std::fs::write(&parser.output, bundled_ast.to_string()).unwrap();
 
 	let resources = Resources::from_file_system();
 	let generator_parameters = match (args.minify, args.beautify) {
@@ -59,8 +59,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 	};
 
 	let configuration = Configuration::empty().with_generator(generator_parameters);
-	let process_options = Options::new(&collector.output)
-		.with_output(collector.output)
+	let process_options = Options::new(&parser.output)
+		.with_output(parser.output)
 		.with_configuration(configuration);
 
 	info!("Processing output");

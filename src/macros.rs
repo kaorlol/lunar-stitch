@@ -1,8 +1,10 @@
 // Ignoring the full paths, i like using full paths for macros.
 
-/// Make a lua function call:
-/// -- path
+/// Make a lua function call:\
+/// ```lua
+/// -- path.lua
 /// (function(...) ... end)();
+/// ```
 #[macro_export]
 macro_rules! make_function_call {
 	($path:expr, $ast:expr, $suffixes:expr) => {
@@ -42,7 +44,8 @@ macro_rules! make_function_call {
 			},
 		)))
 		.with_suffixes({
-			let new: Vec<full_moon::ast::Suffix> = vec![full_moon::ast::Suffix::Call(
+			let mut new_suffixes = Vec::new();
+			new_suffixes.push(full_moon::ast::Suffix::Call(
 				full_moon::ast::Call::AnonymousCall(full_moon::ast::FunctionArgs::Parentheses {
 					parentheses: full_moon::ast::span::ContainedSpan::new(
 						full_moon::tokenizer::TokenReference::symbol("(").unwrap(),
@@ -72,19 +75,20 @@ macro_rules! make_function_call {
 								}
 							},
 						),
-						// full_moon::tokenizer::TokenReference::symbol(")").unwrap(),
 					),
 					arguments: full_moon::ast::punctuated::Punctuated::new(),
 				}),
-			)]
-			.into_iter()
-			.chain($suffixes.into_iter())
-			.collect();
-			new
+			));
+			new_suffixes.extend($suffixes.into_iter());
+			new_suffixes
 		})
 	};
 }
 
+/// Gets the end position of a token,
+/// if there is trailing whitespace it will return the end of position of the whitespace,
+/// otherwise it will return the end position of the token.\
+/// If the end position is not in the semicolons list, it will add a semicolon and a newline.
 #[macro_export]
 macro_rules! add_semicolon_if_needed {
 	($token_ref:expr, $semicolons:expr) => {
@@ -108,10 +112,9 @@ macro_rules! add_semicolon_if_needed {
 					}),
 				];
 
-				Some(trailing)
-			} else {
-				None
+				return Some(trailing);
 			}
+			None
 		})
 	};
 }
