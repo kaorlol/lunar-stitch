@@ -82,6 +82,7 @@ impl VisitorMut for AcquireCollector {
 		if self.contains_acquire(call.prefix()) {
 			let path = match self.grab_acquire_path(&call) {
 				Some(p) if p != self.input && p != self.output => p,
+				Some(_) => return call,
 				None => panic!("Invalid acquire path"),
 			};
 
@@ -93,15 +94,14 @@ impl VisitorMut for AcquireCollector {
 						.unwrap_or_else(|_| panic!("Failed to parse {path}"))
 				});
 
-				// TODO: Odds are, using `let mut suffixes: Vec<_> = ...` will result in a cleaner line.
-				let mut suffixes = call.suffixes().cloned().collect::<Vec<_>>();
-				
+				let mut suffixes: Vec<ast::Suffix> = call.suffixes().cloned().collect();
+
 				if let Some(last_suffix) = suffixes.last_mut() {
 					match last_suffix {
 						ast::Suffix::Call(call) => {
 							// TODO: Same as line r:-6
-							let tokens = call.tokens().cloned().collect::<Vec<_>>();
-							
+							let tokens: Vec<TokenReference> = call.tokens().cloned().collect();
+
 							process_tokens(tokens, &mut self.semi_colons, |trivia| {
 								if let ast::Call::AnonymousCall(args) = call {
 									match args {
@@ -120,9 +120,7 @@ impl VisitorMut for AcquireCollector {
 												arguments: arguments.clone(),
 											};
 										}
-
-										// TODO: Use todo!(), unless if nature is un-warranted.
-										_ => (),
+										_ => todo!(),
 									}
 								}
 							});
