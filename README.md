@@ -8,22 +8,28 @@ Lunar Stitch is a Roblox luau bundler that allows you to bundle your code into a
 
 Install [binary](https://github.com/kaorlol/lunar-stitch/releases/latest) for your operating system.
 
-#### Commands:
-
-```
--r, --root <ROOT>      The root directory to use [default: .]
--i, --input <INPUT>    The input file to read from [default: main.lua]
--o, --output <OUTPUT>  The output file to write to [default: bundled.lua]
--m, --minify           Whether to minify the output
--b, --beautify         Whether to beautify the output
--h, --help             Print help
--V, --version          Print version
-```
-
-## Usage Example
+#### Usage:
 
 ```sh
-lunar-stitch -r src -i main.lua -o bundle.lua
+lunar-stitch.exe [OPTIONS]
+```
+
+##### Example:
+
+```sh
+lunar-stitch.exe -r src -i main.lua -o bundled.lua
+```
+
+### Options:
+
+```
+-r, --root <ROOT> The root directory to use [default: .]
+-i, --input <INPUT> The input file to read from [default: main.lua]
+-o, --output <OUTPUT> The output file to write to [default: bundled.lua]
+-m, --minify Whether to minify the output
+-b, --beautify Whether to beautify the output
+-h, --help Print help
+-V, --version Print version
 ```
 
 ## License
