@@ -7,6 +7,7 @@ use darklua_core::{Configuration, GeneratorParameters, Options, Resources};
 
 mod collector;
 use collector::AcquireParser;
+use collector::AcquireParser;
 
 mod log;
 use full_moon::visitors::VisitorMut as _;
