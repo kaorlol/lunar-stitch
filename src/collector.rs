@@ -1,6 +1,3 @@
-// TODO: deabstraction pattern
-// TODO: Better comments :)
-
 use full_moon::{
 	ast::{
 		span::ContainedSpan, Ast, Block, Call, FunctionArgs, FunctionCall, Index, Prefix, Suffix,
@@ -12,7 +9,8 @@ use full_moon::{
 use rustc_hash::{FxHashMap, FxHashSet};
 use spdlog::info;
 
-pub struct AcquireCollector {
+/// Used to parse the acquire calls in the Lua code
+pub struct AcquireParser {
 	pub root: String,
 	pub input: String,
 	pub output: String,
@@ -21,13 +19,17 @@ pub struct AcquireCollector {
 	pub count: usize,
 }
 
-impl Default for AcquireCollector {
+impl Default for AcquireParser {
+	/// Uses the default values:
+	/// - root: "."
+	/// - input: "main.lua"
+	/// - output: "bundled.lua"
 	fn default() -> Self {
 		Self::new(".".into(), "main.lua".into(), "bundled.lua".into())
 	}
 }
 
-impl AcquireCollector {
+impl AcquireParser {
 	pub fn new(root: String, input: String, output: String) -> Self {
 		Self {
 			root,
@@ -39,7 +41,8 @@ impl AcquireCollector {
 		}
 	}
 
-	pub fn contains_acquire(&self, prefix: &Prefix) -> bool {
+	/// Parses a `ast::Prefix` to check if it contains an `acquire` identifier
+	fn contains_acquire(&self, prefix: &Prefix) -> bool {
 		prefix.tokens().any(|token| {
 			matches!(
 				token.token_type(),
@@ -48,7 +51,8 @@ impl AcquireCollector {
 		})
 	}
 
-	pub fn grab_acquire_path(&self, call: &FunctionCall) -> Option<String> {
+	/// Parses a `ast::FunctionCall` to grab the path of the file to acquire
+	fn grab_acquire_path(&self, call: &FunctionCall) -> Option<String> {
 		call.suffixes().find_map(|suffix| {
 			let Suffix::Call(call) = suffix else {
 				return None;
@@ -64,7 +68,7 @@ impl AcquireCollector {
 	}
 }
 
-impl VisitorMut for AcquireCollector {
+impl VisitorMut for AcquireParser {
 	fn visit_block(&mut self, block: Block) -> Block {
 		block.stmts_with_semicolon().for_each(|stmt| {
 			stmt.tokens().for_each(|token| {
@@ -170,11 +174,14 @@ impl VisitorMut for AcquireCollector {
 	}
 }
 
+/// Used to store the leading and trailing trivia of a token
 struct Trivia {
 	leading: Vec<Token>,
 	trailing: Vec<Token>,
 }
 
+/// Processes the tokens to add semicolons where needed\
+/// Returns the `Trivia` of the token in a closure
 fn process_tokens<F>(tokens: Vec<TokenReference>, semicolons: &mut FxHashSet<usize>, mut handler: F)
 where
 	F: FnMut(Trivia),
@@ -189,6 +196,110 @@ where
 					});
 				}
 			}
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::fs;
+
+	macro_rules! acquire_collector {
+		() => {
+			AcquireCollector::new("./test".into(), "main.lua".into(), "bundled.lua".into())
+		};
+	}
+
+	#[test]
+	fn test_contains_acquire() {
+		let collector = acquire_collector!();
+
+		let lua_code = "acquire('test_file.lua')";
+		let ast = full_moon::parse(lua_code).unwrap();
+		match ast.clone().nodes().stmts().next().unwrap() {
+			full_moon::ast::Stmt::FunctionCall(call) => {
+				assert!(collector.contains_acquire(call.prefix()));
+			}
+			_ => panic!("Expected function call"),
+		}
+	}
+
+	#[test]
+	fn test_grab_acquire_path() {
+		let collector = acquire_collector!();
+
+		let lua_code = "acquire('test_file.lua')";
+		let ast = full_moon::parse(lua_code).unwrap();
+		match ast.clone().nodes().stmts().next().unwrap() {
+			full_moon::ast::Stmt::FunctionCall(call) => {
+				let path = collector.grab_acquire_path(&call);
+				assert_eq!(path, Some("./test/test_file.lua".into()));
+			}
+			_ => panic!("Expected function call"),
+		}
+	}
+
+	#[test]
+	fn test_acquire_with_invalid_path() {
+		let mut collector = acquire_collector!();
+
+		let lua_code = "acquire('invalid_file.lua')";
+		let ast = full_moon::parse(lua_code).unwrap();
+		match ast.clone().nodes().stmts().next().unwrap() {
+			full_moon::ast::Stmt::FunctionCall(call) => {
+				collector.visit_function_call(call.clone());
+				assert_eq!(collector.count, 0);
+			}
+			_ => panic!("Expected function call"),
+		}
+	}
+
+	#[test]
+	fn test_semicolon_tracking() {
+		let mut collector = acquire_collector!();
+
+		let lua_code = "local x = 10;\nlocal ya = 20;\n";
+		let ast = full_moon::parse(lua_code).unwrap();
+
+		collector.visit_block(ast.nodes().clone());
+
+		let expected_semicolons: FxHashSet<_> = [14, 13].into_iter().collect();
+		assert_eq!(collector.semi_colons, expected_semicolons);
+	}
+
+	#[test]
+	fn test_process_cached_ast() {
+		let mut collector = acquire_collector!();
+		let test_path = "./test/test_file.lua";
+
+		fs::write(test_path, "local x = 42").unwrap();
+
+		let lua_code = "acquire('test_file.lua')";
+		let ast = full_moon::parse(lua_code).unwrap();
+		match ast.clone().nodes().stmts().next().unwrap() {
+			full_moon::ast::Stmt::FunctionCall(call) => {
+				collector.visit_function_call(call.clone());
+				assert!(collector.processed_cache.contains_key(test_path));
+			}
+			_ => panic!("Expected function call"),
+		}
+
+		fs::remove_file(test_path).unwrap();
+	}
+
+	#[test]
+	fn test_function_call_suffix_modification() {
+		let mut collector = acquire_collector!();
+
+		let lua_code = "acquire('test_file.lua').do_something()";
+		let ast = full_moon::parse(lua_code).unwrap();
+		match ast.clone().nodes().stmts().next().unwrap() {
+			full_moon::ast::Stmt::FunctionCall(call) => {
+				collector.visit_function_call(call.clone());
+				assert!(collector.count > 0);
+			}
+			_ => panic!("Expected function call"),
 		}
 	}
 }
