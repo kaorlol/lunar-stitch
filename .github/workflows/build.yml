@@ -22,8 +22,8 @@ jobs:
             - name: Extract Version
               id: version
               run: |
-                  VERSION=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
-                  echo "VERSION=$VERSION" >> $GITHUB_ENV
+                  $VERSION = cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version'
+                  echo "VERSION=$VERSION" >> $env:GITHUB_ENV
 
             - name: Build
               run: cargo build --release --verbose
