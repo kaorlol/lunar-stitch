@@ -24,7 +24,7 @@ jobs:
 
             - name: Extract Version
               run: |
-                  echo "$(jq -r '.packages[0].version' metadata.json)"
+                  echo "VERSION=$(jq -r '.packages[0].version' metadata.json)" >> $env:GITHUB_ENV
                   echo "VERSION=$(jq -r '.packages[0].version' metadata.json)" >> $GITHUB_ENV
 
             - name: Build
