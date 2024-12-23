@@ -1,12 +1,12 @@
-// Top level suggestions for you:
-//	1. Make your include paths shorter. (i.e. ast::Suffix::Index => Suffix::Index or Index)
-//	2. I would hihgly suggest figuring a deabstraction pattern; Reading and writting your code is not fun.
-//	3. Better comments :)
+// TODO: deabstraction pattern
+// TODO: Better comments :)
 
 use full_moon::{
-	ast,
+	ast::{
+		span::ContainedSpan, Ast, Block, Call, FunctionArgs, FunctionCall, Index, Prefix, Suffix,
+	},
 	node::Node as _,
-	tokenizer::{self, Token, TokenReference, TokenType},
+	tokenizer::{Symbol, Token, TokenReference, TokenType},
 	visitors::VisitorMut,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -16,7 +16,7 @@ pub struct AcquireCollector {
 	pub root: String,
 	pub input: String,
 	pub output: String,
-	pub processed_cache: FxHashMap<String, ast::Ast>,
+	pub processed_cache: FxHashMap<String, Ast>,
 	semi_colons: FxHashSet<usize>,
 	pub count: usize,
 }
@@ -39,7 +39,7 @@ impl AcquireCollector {
 		}
 	}
 
-	pub fn contains_acquire(&self, prefix: &ast::Prefix) -> bool {
+	pub fn contains_acquire(&self, prefix: &Prefix) -> bool {
 		prefix.tokens().any(|token| {
 			matches!(
 				token.token_type(),
@@ -48,9 +48,9 @@ impl AcquireCollector {
 		})
 	}
 
-	pub fn grab_acquire_path(&self, call: &ast::FunctionCall) -> Option<String> {
+	pub fn grab_acquire_path(&self, call: &FunctionCall) -> Option<String> {
 		call.suffixes().find_map(|suffix| {
-			let ast::Suffix::Call(call) = suffix else {
+			let Suffix::Call(call) = suffix else {
 				return None;
 			};
 
@@ -65,10 +65,11 @@ impl AcquireCollector {
 }
 
 impl VisitorMut for AcquireCollector {
-	fn visit_block(&mut self, block: ast::Block) -> ast::Block {
+	fn visit_block(&mut self, block: Block) -> Block {
 		block.stmts_with_semicolon().for_each(|stmt| {
 			stmt.tokens().for_each(|token| {
-				if matches!(token.token_type(), TokenType::Symbol { symbol } if *symbol == tokenizer::Symbol::Semicolon) {
+				if matches!(token.token_type(), TokenType::Symbol { symbol } if *symbol == Symbol::Semicolon)
+				{
 					if let Some(start_pos) = token.start_position() {
 						self.semi_colons.insert(start_pos.character());
 					}
@@ -78,7 +79,7 @@ impl VisitorMut for AcquireCollector {
 		block
 	}
 
-	fn visit_function_call(&mut self, mut call: ast::FunctionCall) -> ast::FunctionCall {
+	fn visit_function_call(&mut self, mut call: FunctionCall) -> FunctionCall {
 		if self.contains_acquire(call.prefix()) {
 			let path = match self.grab_acquire_path(&call) {
 				Some(p) if p != self.input && p != self.output => p,
@@ -94,25 +95,23 @@ impl VisitorMut for AcquireCollector {
 						.unwrap_or_else(|_| panic!("Failed to parse {path}"))
 				});
 
-				let mut suffixes: Vec<ast::Suffix> = call.suffixes().cloned().collect();
-
+				let mut suffixes: Vec<Suffix> = call.suffixes().cloned().collect();
 				if let Some(last_suffix) = suffixes.last_mut() {
 					match last_suffix {
-						ast::Suffix::Call(call) => {
-							// TODO: Same as line r:-6
+						Suffix::Call(call) => {
 							let tokens: Vec<TokenReference> = call.tokens().cloned().collect();
 
 							process_tokens(tokens, &mut self.semi_colons, |trivia| {
-								if let ast::Call::AnonymousCall(args) = call {
+								if let Call::AnonymousCall(args) = call {
 									match args {
-										ast::FunctionArgs::Parentheses { arguments, .. } => {
-											*args = ast::FunctionArgs::Parentheses {
-												parentheses: ast::span::ContainedSpan::new(
+										FunctionArgs::Parentheses { arguments, .. } => {
+											*args = FunctionArgs::Parentheses {
+												parentheses: ContainedSpan::new(
 													TokenReference::symbol("(").unwrap(),
 													TokenReference::new(
 														trivia.leading,
 														Token::new(TokenType::Symbol {
-															symbol: tokenizer::Symbol::RightParen,
+															symbol: Symbol::RightParen,
 														}),
 														trivia.trailing,
 													),
@@ -127,11 +126,11 @@ impl VisitorMut for AcquireCollector {
 						}
 
 						// Doesn't work atm
-						ast::Suffix::Index(index) => {
+						Suffix::Index(index) => {
 							let tokens = index.tokens().cloned().collect::<Vec<_>>();
 							process_tokens(tokens, &mut self.semi_colons, |trivia| match index {
-								ast::Index::Dot { name, .. } => {
-									*index = ast::Index::Dot {
+								Index::Dot { name, .. } => {
+									*index = Index::Dot {
 										dot: TokenReference::symbol(".").unwrap(),
 										name: TokenReference::new(
 											trivia.leading,
@@ -140,14 +139,14 @@ impl VisitorMut for AcquireCollector {
 										),
 									};
 								}
-								ast::Index::Brackets { expression, .. } => {
-									*index = ast::Index::Brackets {
-										brackets: ast::span::ContainedSpan::new(
+								Index::Brackets { expression, .. } => {
+									*index = Index::Brackets {
+										brackets: ContainedSpan::new(
 											TokenReference::symbol("[").unwrap(),
 											TokenReference::new(
 												trivia.leading,
 												Token::new(TokenType::Symbol {
-													symbol: tokenizer::Symbol::RightBracket,
+													symbol: Symbol::RightBracket,
 												}),
 												trivia.trailing,
 											),
@@ -183,9 +182,7 @@ where
 {
 	for token in tokens.iter() {
 		if let TokenType::Symbol { symbol } = token.token_type() {
-			if *symbol == tokenizer::Symbol::RightParen
-				|| *symbol == tokenizer::Symbol::RightBracket
-			{
+			if *symbol == Symbol::RightParen || *symbol == Symbol::RightBracket {
 				if let Some(trailing) = add_semicolon_if_needed!(token, semicolons) {
 					handler(Trivia {
 						leading: token.leading_trivia().cloned().collect(),

@@ -1,3 +1,5 @@
+// Ignoring the full paths, i like using full paths for macros.
+
 /// Make a lua function call:
 /// -- path
 /// (function(...) ... end)();
@@ -99,7 +101,7 @@ macro_rules! add_semicolon_if_needed {
 			if !$semicolons.contains(&end_pos.character()) {
 				let trailing = vec![
 					full_moon::tokenizer::Token::new(full_moon::tokenizer::TokenType::Symbol {
-						symbol: tokenizer::Symbol::Semicolon,
+						symbol: full_moon::tokenizer::Symbol::Semicolon,
 					}),
 					full_moon::tokenizer::Token::new(full_moon::tokenizer::TokenType::Whitespace {
 						characters: "\n".into(),
