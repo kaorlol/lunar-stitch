@@ -205,35 +205,21 @@ mod tests {
 	use super::*;
 	use std::fs;
 
-<<<<<<< HEAD
 	macro_rules! acquire_parser {
 		() => {
 			AcquireParser::new("./test".into(), "main.lua".into(), "bundled.lua".into())
-=======
-	macro_rules! acquire_collector {
-		() => {
-			AcquireCollector::new("./test".into(), "main.lua".into(), "bundled.lua".into())
->>>>>>> c4b8fee7b94c9debbd29a776a6d007f879b26b82
 		};
 	}
 
 	#[test]
 	fn test_contains_acquire() {
-<<<<<<< HEAD
 		let parser = acquire_parser!();
-=======
-		let collector = acquire_collector!();
->>>>>>> c4b8fee7b94c9debbd29a776a6d007f879b26b82
 
 		let lua_code = "acquire('test_file.lua')";
 		let ast = full_moon::parse(lua_code).unwrap();
 		match ast.clone().nodes().stmts().next().unwrap() {
 			full_moon::ast::Stmt::FunctionCall(call) => {
-<<<<<<< HEAD
 				assert!(parser.contains_acquire(call.prefix()));
-=======
-				assert!(collector.contains_acquire(call.prefix()));
->>>>>>> c4b8fee7b94c9debbd29a776a6d007f879b26b82
 			}
 			_ => panic!("Expected function call"),
 		}
@@ -241,21 +227,13 @@ mod tests {
 
 	#[test]
 	fn test_grab_acquire_path() {
-<<<<<<< HEAD
 		let parser = acquire_parser!();
-=======
-		let collector = acquire_collector!();
->>>>>>> c4b8fee7b94c9debbd29a776a6d007f879b26b82
 
 		let lua_code = "acquire('test_file.lua')";
 		let ast = full_moon::parse(lua_code).unwrap();
 		match ast.clone().nodes().stmts().next().unwrap() {
 			full_moon::ast::Stmt::FunctionCall(call) => {
-<<<<<<< HEAD
 				let path = parser.grab_acquire_path(&call);
-=======
-				let path = collector.grab_acquire_path(&call);
->>>>>>> c4b8fee7b94c9debbd29a776a6d007f879b26b82
 				assert_eq!(path, Some("./test/test_file.lua".into()));
 			}
 			_ => panic!("Expected function call"),
@@ -264,23 +242,14 @@ mod tests {
 
 	#[test]
 	fn test_acquire_with_invalid_path() {
-<<<<<<< HEAD
 		let mut parser = acquire_parser!();
-=======
-		let mut collector = acquire_collector!();
->>>>>>> c4b8fee7b94c9debbd29a776a6d007f879b26b82
 
 		let lua_code = "acquire('invalid_file.lua')";
 		let ast = full_moon::parse(lua_code).unwrap();
 		match ast.clone().nodes().stmts().next().unwrap() {
 			full_moon::ast::Stmt::FunctionCall(call) => {
-<<<<<<< HEAD
 				parser.visit_function_call(call.clone());
 				assert_eq!(parser.count, 0);
-=======
-				collector.visit_function_call(call.clone());
-				assert_eq!(collector.count, 0);
->>>>>>> c4b8fee7b94c9debbd29a776a6d007f879b26b82
 			}
 			_ => panic!("Expected function call"),
 		}
@@ -288,35 +257,20 @@ mod tests {
 
 	#[test]
 	fn test_semicolon_tracking() {
-<<<<<<< HEAD
 		let mut parser = acquire_parser!();
-=======
-		let mut collector = acquire_collector!();
->>>>>>> c4b8fee7b94c9debbd29a776a6d007f879b26b82
 
 		let lua_code = "local x = 10;\nlocal ya = 20;\n";
 		let ast = full_moon::parse(lua_code).unwrap();
 
-<<<<<<< HEAD
 		parser.visit_block(ast.nodes().clone());
 
 		let expected_semicolons: FxHashSet<_> = [14, 13].into_iter().collect();
 		assert_eq!(parser.semi_colons, expected_semicolons);
-=======
-		collector.visit_block(ast.nodes().clone());
-
-		let expected_semicolons: FxHashSet<_> = [14, 13].into_iter().collect();
-		assert_eq!(collector.semi_colons, expected_semicolons);
->>>>>>> c4b8fee7b94c9debbd29a776a6d007f879b26b82
 	}
 
 	#[test]
 	fn test_process_cached_ast() {
-<<<<<<< HEAD
 		let mut parser = acquire_parser!();
-=======
-		let mut collector = acquire_collector!();
->>>>>>> c4b8fee7b94c9debbd29a776a6d007f879b26b82
 		let test_path = "./test/test_file.lua";
 
 		fs::write(test_path, "local x = 42").unwrap();
@@ -325,13 +279,8 @@ mod tests {
 		let ast = full_moon::parse(lua_code).unwrap();
 		match ast.clone().nodes().stmts().next().unwrap() {
 			full_moon::ast::Stmt::FunctionCall(call) => {
-<<<<<<< HEAD
 				parser.visit_function_call(call.clone());
 				assert!(parser.processed_cache.contains_key(test_path));
-=======
-				collector.visit_function_call(call.clone());
-				assert!(collector.processed_cache.contains_key(test_path));
->>>>>>> c4b8fee7b94c9debbd29a776a6d007f879b26b82
 			}
 			_ => panic!("Expected function call"),
 		}
@@ -341,23 +290,14 @@ mod tests {
 
 	#[test]
 	fn test_function_call_suffix_modification() {
-<<<<<<< HEAD
 		let mut parser = acquire_parser!();
-=======
-		let mut collector = acquire_collector!();
->>>>>>> c4b8fee7b94c9debbd29a776a6d007f879b26b82
 
 		let lua_code = "acquire('test_file.lua').do_something()";
 		let ast = full_moon::parse(lua_code).unwrap();
 		match ast.clone().nodes().stmts().next().unwrap() {
 			full_moon::ast::Stmt::FunctionCall(call) => {
-<<<<<<< HEAD
 				parser.visit_function_call(call.clone());
 				assert!(parser.count > 0);
-=======
-				collector.visit_function_call(call.clone());
-				assert!(collector.count > 0);
->>>>>>> c4b8fee7b94c9debbd29a776a6d007f879b26b82
 			}
 			_ => panic!("Expected function call"),
 		}
