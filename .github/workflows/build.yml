@@ -41,7 +41,7 @@ jobs:
               if: runner.os == 'Windows'
               run: |
                   mkdir -p release
-                  zip -r "release/lunar-stitch-${{ env.VERSION }}-windows.zip" target/release/lunar-stitch.exe
+                  powershell -Command "Compress-Archive -Path target/release/lunar-stitch.exe -DestinationPath release/lunar-stitch-${{ env.VERSION }}-windows.zip"
 
             - name: Release
               uses: softprops/action-gh-release@v2
