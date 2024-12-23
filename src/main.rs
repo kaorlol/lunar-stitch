@@ -6,7 +6,7 @@ use std::time::Instant;
 use darklua_core::{Configuration, GeneratorParameters, Options, Resources};
 
 mod collector;
-use collector::AcquireCollector;
+use collector::AcquireParser;
 
 mod log;
 use full_moon::visitors::VisitorMut as _;
@@ -38,7 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 	info!("Parsing main.lua");
 	let time = Instant::now();
 	let ast = full_moon::parse(input.as_str()).unwrap();
-	let mut collector = AcquireCollector::new(args.root, args.input, args.output);
+	let mut collector = AcquireParser::new(args.root, args.input, args.output);
 	let bundled_ast = collector.visit_ast(ast);
 
 	info!(
