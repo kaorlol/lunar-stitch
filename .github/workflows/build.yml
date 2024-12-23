@@ -36,3 +36,4 @@ jobs:
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
                   tag_name: ${{ env.VERSION }}
+                  files: target/release/lunar-stitch
