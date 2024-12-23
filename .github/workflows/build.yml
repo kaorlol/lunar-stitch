@@ -23,7 +23,9 @@ jobs:
               run: cargo metadata --no-deps --format-version 1 > metadata.json
 
             - name: Extract Version
-              run: echo "VERSION=$(jq -r '.packages[0].version' metadata.json)" >> $GITHUB_ENV
+              run: |
+                  echo "$(jq -r '.packages[0].version' metadata.json)"
+                  echo "VERSION=$(jq -r '.packages[0].version' metadata.json)" >> $GITHUB_ENV
 
             - name: Build
               run: cargo build --release --verbose
