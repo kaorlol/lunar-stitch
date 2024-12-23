@@ -18,6 +18,9 @@ jobs:
             - run: rustup toolchain install stable --profile minimal
             - uses: Swatinem/rust-cache@v2
 
+            - name: Metadata
+              run: cargo metadata --no-deps --format-version 1
+
             - name: Extract Version
               id: version
               run: |
