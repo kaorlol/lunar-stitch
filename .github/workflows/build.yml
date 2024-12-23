@@ -25,13 +25,6 @@ jobs:
             - name: Extract Version
               run: echo "VERSION=$(jq -r '.packages[0].version' metadata.json)" >> $GITHUB_ENV
 
-            - name: Check Version
-              run: |
-                  if [ -z "$VERSION" ]; then
-                      echo "No version found, skipping release"
-                      exit 1
-                  fi
-
             - name: Build
               run: cargo build --release --verbose
 
