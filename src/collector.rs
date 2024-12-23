@@ -100,7 +100,6 @@ impl VisitorMut for AcquireCollector {
 					match last_suffix {
 						Suffix::Call(call) => {
 							let tokens: Vec<TokenReference> = call.tokens().cloned().collect();
-
 							process_tokens(tokens, &mut self.semi_colons, |trivia| {
 								if let Call::AnonymousCall(args) = call {
 									match args {
@@ -119,7 +118,7 @@ impl VisitorMut for AcquireCollector {
 												arguments: arguments.clone(),
 											};
 										}
-										_ => todo!(),
+										_ => todo!("New function args type"),
 									}
 								}
 							});
@@ -154,7 +153,7 @@ impl VisitorMut for AcquireCollector {
 										expression: expression.clone(),
 									};
 								}
-								_ => (),
+								_ => todo!("New index type"),
 							});
 						}
 						_ => (),
