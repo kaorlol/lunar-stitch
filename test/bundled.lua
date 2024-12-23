@@ -1,0 +1,2 @@
+-- ./test.lua
+(function(...)end)();
