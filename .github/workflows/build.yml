@@ -31,9 +31,21 @@ jobs:
             - name: Run tests
               run: cargo test --release --verbose
 
+            - name: Package for macOS/Linux
+              if: runner.os != 'Windows'
+              run: |
+                  mkdir -p release
+                  zip -r "release/lunar-stitch-${{ env.VERSION }}-${{ runner.os }}.zip" target/release/lunar-stitch
+
+            - name: Package for Windows
+              if: runner.os == 'Windows'
+              run: |
+                  mkdir -p release
+                  zip -r "release/lunar-stitch-${{ env.VERSION }}-windows.zip" target/release/lunar-stitch.exe
+
             - name: Release
               uses: softprops/action-gh-release@v2
               with:
                   token: ${{ secrets.GITHUB_TOKEN }}
                   tag_name: ${{ env.VERSION }}
-                  files: target/release/lunar-stitch
+                  files: release/*
