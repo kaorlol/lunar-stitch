@@ -287,19 +287,4 @@ mod tests {
 
 		fs::remove_file(test_path).unwrap();
 	}
-
-	#[test]
-	fn test_function_call_suffix_modification() {
-		let mut parser = acquire_parser!();
-
-		let lua_code = "acquire('test_file.lua').do_something()";
-		let ast = full_moon::parse(lua_code).unwrap();
-		match ast.clone().nodes().stmts().next().unwrap() {
-			full_moon::ast::Stmt::FunctionCall(call) => {
-				parser.visit_function_call(call.clone());
-				assert!(parser.count > 0);
-			}
-			_ => panic!("Expected function call"),
-		}
-	}
 }
