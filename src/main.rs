@@ -37,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 	info!("Parsing main.lua");
 	let time = Instant::now();
-	let ast = full_moon::parse(input.as_str()).unwrap();
+	let ast = full_moon::parse(&input).unwrap();
 	let mut parser = AcquireParser::new(args.root, args.input, args.output);
 	let bundled_ast = parser.visit_ast(ast);
 

@@ -1,88 +1,182 @@
-// Ignoring the full paths, i like using full paths for macros.
-
-/// Make a lua function call:\
+/// Make a lua call:\
 /// ```lua
 /// -- path.lua
 /// (function(...) ... end)();
 /// ```
 #[macro_export]
-macro_rules! make_function_call {
-	($path:expr, $ast:expr, $suffixes:expr) => {
-		full_moon::ast::FunctionCall::new(full_moon::ast::Prefix::Expression(Box::new(
-			full_moon::ast::Expression::Parentheses {
-				contained: full_moon::ast::span::ContainedSpan::new(
-					full_moon::tokenizer::TokenReference::new(
-						vec![full_moon::tokenizer::Token::new(
-							full_moon::tokenizer::TokenType::SingleLineComment {
-								comment: format!(" {}\n", $path).into(),
-							},
-						)],
-						full_moon::tokenizer::Token::new(full_moon::tokenizer::TokenType::Symbol {
-							symbol: full_moon::tokenizer::Symbol::LeftParen,
-						}),
-						Vec::new(),
-					),
-					full_moon::tokenizer::TokenReference::symbol(")").unwrap(),
-				),
-				expression: Box::new(full_moon::ast::Expression::Function(Box::new((
-					full_moon::tokenizer::TokenReference::symbol("function").unwrap(),
-					full_moon::ast::FunctionBody::new()
-						.with_parameters({
-							let mut punctuated = full_moon::ast::punctuated::Punctuated::new();
-							punctuated.push(full_moon::ast::punctuated::Pair::End(
-								full_moon::ast::Parameter::Ellipsis(
-									full_moon::tokenizer::TokenReference::symbol("...").unwrap(),
-								),
-							));
-							punctuated
-						})
-						.with_block($ast.nodes().clone())
-						.with_end_token(
-							full_moon::tokenizer::TokenReference::symbol("end").unwrap(),
-						),
-				)))),
-			},
-		)))
-		.with_suffixes({
-			let mut new_suffixes = Vec::new();
-			new_suffixes.push(full_moon::ast::Suffix::Call(
-				full_moon::ast::Call::AnonymousCall(full_moon::ast::FunctionArgs::Parentheses {
-					parentheses: full_moon::ast::span::ContainedSpan::new(
-						full_moon::tokenizer::TokenReference::symbol("(").unwrap(),
-						full_moon::tokenizer::TokenReference::new(
+macro_rules! make_call {
+	($type:expr, $path:expr, $ast:expr, $suffixes:expr, $needs_semi:expr) => {
+		paste::paste! {
+			$type::new(Prefix::Expression(Box::new(
+				Expression::Parentheses {
+					contained: span::ContainedSpan::new(
+						TokenReference::new(
+							vec![Token::new(
+								TokenType::SingleLineComment {
+									comment: format!(" {}\n", $path).into(),
+								},
+							)],
+							Token::new(TokenType::Symbol {
+								symbol: Symbol::LeftParen,
+							}),
 							Vec::new(),
-							full_moon::tokenizer::Token::new(
-								full_moon::tokenizer::TokenType::Symbol {
-									symbol: full_moon::tokenizer::Symbol::RightParen,
+						),
+						TokenReference::symbol(")").unwrap(),
+					),
+					expression: Box::new(Expression::Function(Box::new((
+						TokenReference::symbol("function").unwrap(),
+						FunctionBody::new()
+							.with_parameters({
+								let mut punctuated = punctuated::Punctuated::new();
+								punctuated.push(punctuated::Pair::End(
+									Parameter::Ellipsis(
+										TokenReference::symbol("...").unwrap(),
+									),
+								));
+								punctuated
+							})
+							.with_block($ast.nodes().clone())
+							.with_end_token(
+								TokenReference::symbol("end").unwrap(),
+							),
+					)))),
+				},
+			)))
+			.with_suffixes({
+				let mut new_suffixes = Vec::new();
+				new_suffixes.push(Suffix::Call(
+					Call::AnonymousCall(FunctionArgs::Parentheses {
+						parentheses: span::ContainedSpan::new(
+							TokenReference::symbol("(").unwrap(),
+							TokenReference::new(
+								Vec::new(),
+								Token::new(
+									TokenType::Symbol {
+										symbol: Symbol::RightParen,
+									},
+								),
+								{
+									if $suffixes.len() == 0 && $needs_semi {
+										vec![
+											Token::new(
+												TokenType::Symbol {
+													symbol: Symbol::Semicolon,
+												},
+											),
+											Token::new(
+												TokenType::Whitespace {
+													characters: "\n".into(),
+												},
+											),
+										]
+									} else {
+										Vec::new()
+									}
 								},
 							),
-							{
-								if $suffixes.len() == 0 {
-									vec![
-										full_moon::tokenizer::Token::new(
-											full_moon::tokenizer::TokenType::Symbol {
-												symbol: full_moon::tokenizer::Symbol::Semicolon,
-											},
-										),
-										full_moon::tokenizer::Token::new(
-											full_moon::tokenizer::TokenType::Whitespace {
-												characters: "\n".into(),
-											},
-										),
-									]
-								} else {
-									Vec::new()
-								}
-							},
 						),
-					),
-					arguments: full_moon::ast::punctuated::Punctuated::new(),
-				}),
-			));
-			new_suffixes.extend($suffixes.into_iter());
-			new_suffixes
-		})
+						arguments: punctuated::Punctuated::new(),
+					}),
+				));
+				new_suffixes.extend($suffixes.into_iter());
+				new_suffixes
+			})
+		}
 	};
+}
+
+#[macro_export]
+macro_rules! get_range {
+	($call:expr) => {{
+		std::ops::Range {
+			start: $call.prefix().start_position().unwrap().character(),
+			end: $call
+				.suffixes()
+				.last()
+				.unwrap()
+				.end_position()
+				.unwrap()
+				.character(),
+		}
+	}};
+}
+
+/// Get the suffixes of a call and process the tokens to add semicolons where needed.\
+/// Returns the suffixes without the first one.
+#[macro_export]
+macro_rules! get_suffixes {
+	($call:expr, $semi_colons:expr, $needs_semi:expr) => {{
+		let mut suffixes: Vec<Suffix> = $call.suffixes().cloned().collect();
+		if let Some(last_suffix) = suffixes.last_mut() {
+			match last_suffix {
+				Suffix::Call(call) => {
+					let tokens: Vec<TokenReference> = call.tokens().cloned().collect();
+					process_tokens(tokens, &mut $semi_colons, $needs_semi, |trivia| {
+						if let Call::AnonymousCall(args) = call {
+							match args {
+								FunctionArgs::Parentheses { arguments, .. } => {
+									*args = FunctionArgs::Parentheses {
+										parentheses: span::ContainedSpan::new(
+											TokenReference::symbol("(").unwrap(),
+											TokenReference::new(
+												trivia.leading,
+												Token::new(TokenType::Symbol {
+													symbol: Symbol::RightParen,
+												}),
+												trivia.trailing,
+											),
+										),
+										arguments: arguments.clone(),
+									};
+								}
+								_ => todo!("New function args type"),
+							}
+						}
+					});
+				}
+
+				Suffix::Index(index) => {
+					let tokens = index.tokens().cloned().collect::<Vec<_>>();
+					process_tokens(
+						tokens,
+						&mut $semi_colons,
+						$needs_semi,
+						|trivia| match index {
+							Index::Dot { name, .. } => {
+								*index = Index::Dot {
+									dot: TokenReference::symbol(".").unwrap(),
+									name: TokenReference::new(
+										trivia.leading,
+										name.token().clone(),
+										trivia.trailing,
+									),
+								};
+							}
+							Index::Brackets { expression, .. } => {
+								*index = Index::Brackets {
+									brackets: span::ContainedSpan::new(
+										TokenReference::symbol("[").unwrap(),
+										TokenReference::new(
+											trivia.leading,
+											Token::new(TokenType::Symbol {
+												symbol: Symbol::RightBracket,
+											}),
+											trivia.trailing,
+										),
+									),
+									expression: expression.clone(),
+								};
+							}
+							_ => todo!("New index type"),
+						},
+					);
+				}
+				_ => (),
+			}
+		}
+		suffixes.remove(0);
+		suffixes
+	}};
 }
 
 /// Gets the end position of a token,
@@ -91,30 +185,31 @@ macro_rules! make_function_call {
 /// If the end position is not in the semicolons list, it will add a semicolon and a newline.
 #[macro_export]
 macro_rules! add_semicolon_if_needed {
-	($token_ref:expr, $semicolons:expr) => {
-		$token_ref.end_position().and_then(|mut end_pos| {
-			$token_ref.trailing_trivia().for_each(|token| {
-				if matches!(
-					token.token_type(),
-					full_moon::tokenizer::TokenType::Whitespace { .. }
-				) {
-					end_pos = token.end_position();
-				}
-			});
-
-			if !$semicolons.contains(&end_pos.character()) {
-				let trailing = vec![
-					full_moon::tokenizer::Token::new(full_moon::tokenizer::TokenType::Symbol {
-						symbol: full_moon::tokenizer::Symbol::Semicolon,
-					}),
-					full_moon::tokenizer::Token::new(full_moon::tokenizer::TokenType::Whitespace {
-						characters: "\n".into(),
-					}),
-				];
-
-				return Some(trailing);
-			}
+	($token_ref:expr, $semicolons:expr, $needs_semi:expr) => {
+		if !$needs_semi {
 			None
-		})
+		} else {
+			$token_ref.end_position().and_then(|mut end_pos| {
+				$token_ref.trailing_trivia().for_each(|token| {
+					if matches!(token.token_type(), TokenType::Whitespace { .. }) {
+						end_pos = token.end_position();
+					}
+				});
+
+				if !$semicolons.contains(&end_pos.character()) {
+					let trailing = vec![
+						Token::new(TokenType::Symbol {
+							symbol: Symbol::Semicolon,
+						}),
+						Token::new(TokenType::Whitespace {
+							characters: "\n".into(),
+						}),
+					];
+
+					return Some(trailing);
+				}
+				None
+			})
+		}
 	};
 }

@@ -1,11 +1,4 @@
-use full_moon::{
-	ast::{
-		span::ContainedSpan, Ast, Block, Call, FunctionArgs, FunctionCall, Index, Prefix, Suffix,
-	},
-	node::Node as _,
-	tokenizer::{Symbol, Token, TokenReference, TokenType},
-	visitors::VisitorMut,
-};
+use full_moon::{ast::*, node::Node as _, tokenizer::*, visitors::VisitorMut};
 use rustc_hash::{FxHashMap, FxHashSet};
 use spdlog::info;
 
@@ -15,6 +8,7 @@ pub struct AcquireParser {
 	pub input: String,
 	pub output: String,
 	pub processed_cache: FxHashMap<String, Ast>,
+	latest_call_range: std::ops::Range<usize>,
 	semi_colons: FxHashSet<usize>,
 	pub count: usize,
 }
@@ -36,12 +30,13 @@ impl AcquireParser {
 			input,
 			output,
 			processed_cache: FxHashMap::default(),
+			latest_call_range: 0..0,
 			semi_colons: FxHashSet::default(),
 			count: 0,
 		}
 	}
 
-	/// Parses a `ast::Prefix` to check if it contains an `acquire` identifier
+	/// Parses a [`Prefix`] to check if it contains an "acquire" [`identifier`](TokenType::Identifier)
 	fn contains_acquire(&self, prefix: &Prefix) -> bool {
 		prefix.tokens().any(|token| {
 			matches!(
@@ -51,9 +46,25 @@ impl AcquireParser {
 		})
 	}
 
-	/// Parses a `ast::FunctionCall` to grab the path of the file to acquire
-	fn grab_acquire_path(&self, call: &FunctionCall) -> Option<String> {
+	/// Parses a [`FunctionCall`] to grab the path of the file to acquire
+	fn call_acquire_path(&self, call: &FunctionCall) -> Option<String> {
 		call.suffixes().find_map(|suffix| {
+			let Suffix::Call(call) = suffix else {
+				return None;
+			};
+
+			call.tokens().find_map(|token| {
+				if let TokenType::StringLiteral { literal, .. } = token.token_type() {
+					return Some(format!("{}/{}", self.root, literal.to_string()));
+				}
+				None
+			})
+		})
+	}
+
+	/// Parses a [`VarExpression`] to grab the path of the file to acquire
+	fn var_acquire_path(&self, var: &VarExpression) -> Option<String> {
+		var.suffixes().find_map(|suffix| {
 			let Suffix::Call(call) = suffix else {
 				return None;
 			};
@@ -84,8 +95,10 @@ impl VisitorMut for AcquireParser {
 	}
 
 	fn visit_function_call(&mut self, mut call: FunctionCall) -> FunctionCall {
+		let range = get_range!(call);
+
 		if self.contains_acquire(call.prefix()) {
-			let path = match self.grab_acquire_path(&call) {
+			let path = match self.call_acquire_path(&call) {
 				Some(p) if p != self.input && p != self.output => p,
 				Some(_) => return call,
 				None => panic!("Invalid acquire path"),
@@ -99,97 +112,66 @@ impl VisitorMut for AcquireParser {
 						.unwrap_or_else(|_| panic!("Failed to parse {path}"))
 				});
 
-				let mut suffixes: Vec<Suffix> = call.suffixes().cloned().collect();
-				if let Some(last_suffix) = suffixes.last_mut() {
-					match last_suffix {
-						Suffix::Call(call) => {
-							let tokens: Vec<TokenReference> = call.tokens().cloned().collect();
-							process_tokens(tokens, &mut self.semi_colons, |trivia| {
-								if let Call::AnonymousCall(args) = call {
-									match args {
-										FunctionArgs::Parentheses { arguments, .. } => {
-											*args = FunctionArgs::Parentheses {
-												parentheses: ContainedSpan::new(
-													TokenReference::symbol("(").unwrap(),
-													TokenReference::new(
-														trivia.leading,
-														Token::new(TokenType::Symbol {
-															symbol: Symbol::RightParen,
-														}),
-														trivia.trailing,
-													),
-												),
-												arguments: arguments.clone(),
-											};
-										}
-										_ => todo!("New function args type"),
-									}
-								}
-							});
-						}
-
-						// Doesn't work atm
-						Suffix::Index(index) => {
-							let tokens = index.tokens().cloned().collect::<Vec<_>>();
-							process_tokens(tokens, &mut self.semi_colons, |trivia| match index {
-								Index::Dot { name, .. } => {
-									*index = Index::Dot {
-										dot: TokenReference::symbol(".").unwrap(),
-										name: TokenReference::new(
-											trivia.leading,
-											name.token().clone(),
-											trivia.trailing,
-										),
-									};
-								}
-								Index::Brackets { expression, .. } => {
-									*index = Index::Brackets {
-										brackets: ContainedSpan::new(
-											TokenReference::symbol("[").unwrap(),
-											TokenReference::new(
-												trivia.leading,
-												Token::new(TokenType::Symbol {
-													symbol: Symbol::RightBracket,
-												}),
-												trivia.trailing,
-											),
-										),
-										expression: expression.clone(),
-									};
-								}
-								_ => todo!("New index type"),
-							});
-						}
-						_ => (),
-					}
-				}
-				suffixes.remove(0);
-
-				call = make_function_call!(path, ast, suffixes);
+				let needs_semi = !self.latest_call_range.contains(&range.start);
+				let suffixes = get_suffixes!(call, self.semi_colons, needs_semi);
+				call = make_call!(FunctionCall, path, ast, suffixes, needs_semi);
 				self.count += 1;
 			}
+		} else {
+			self.latest_call_range = range;
 		}
 
 		call
 	}
+
+	fn visit_var_expression(&mut self, mut var_expr: VarExpression) -> VarExpression {
+		let range = get_range!(var_expr);
+		if self.contains_acquire(var_expr.prefix()) {
+			let path = match self.var_acquire_path(&var_expr) {
+				Some(p) if p != self.input && p != self.output => p,
+				Some(_) => return var_expr,
+				None => panic!("Invalid acquire path"),
+			};
+
+			// TODO: Add implicit panic behavior
+			if std::fs::exists(&path).unwrap() {
+				let ast = self.processed_cache.entry(path.clone()).or_insert_with(|| {
+					info!("Parsing {path}");
+					full_moon::parse(&std::fs::read_to_string(&path).unwrap())
+						.unwrap_or_else(|_| panic!("Failed to parse {path}"))
+				});
+
+				let needs_semi = !self.latest_call_range.contains(&range.start);
+				let suffixes = get_suffixes!(var_expr, self.semi_colons, needs_semi);
+				var_expr = make_call!(VarExpression, path, ast, suffixes, needs_semi);
+				self.count += 1;
+			}
+		} else {
+			self.latest_call_range = range;
+		}
+
+		var_expr
+	}
 }
 
-/// Used to store the leading and trailing trivia of a token
+/// Used to store the leading and trailing trivia of a [`Token`]
 struct Trivia {
 	leading: Vec<Token>,
 	trailing: Vec<Token>,
 }
 
-/// Processes the tokens to add semicolons where needed\
-/// Returns the `Trivia` of the token in a closure
-fn process_tokens<F>(tokens: Vec<TokenReference>, semicolons: &mut FxHashSet<usize>, mut handler: F)
-where
+/// Processes the [`tokens`](TokenReference) to add semicolons where needed\
+/// Returns the [`Trivia`] of the [`TokenReference`](TokenReference) in a closure
+fn process_tokens<F>(
+	tokens: Vec<TokenReference>, semicolons: &mut FxHashSet<usize>, needs_semi: bool,
+	mut handler: F,
+) where
 	F: FnMut(Trivia),
 {
 	for token in tokens.iter() {
 		if let TokenType::Symbol { symbol } = token.token_type() {
 			if *symbol == Symbol::RightParen || *symbol == Symbol::RightBracket {
-				if let Some(trailing) = add_semicolon_if_needed!(token, semicolons) {
+				if let Some(trailing) = add_semicolon_if_needed!(token, semicolons, needs_semi) {
 					handler(Trivia {
 						leading: token.leading_trivia().cloned().collect(),
 						trailing,
@@ -233,7 +215,7 @@ mod tests {
 		let ast = full_moon::parse(lua_code).unwrap();
 		match ast.clone().nodes().stmts().next().unwrap() {
 			full_moon::ast::Stmt::FunctionCall(call) => {
-				let path = parser.grab_acquire_path(&call);
+				let path = parser.call_acquire_path(&call);
 				assert_eq!(path, Some("./test/test_file.lua".into()));
 			}
 			_ => panic!("Expected function call"),
