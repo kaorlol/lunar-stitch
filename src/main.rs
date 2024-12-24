@@ -5,8 +5,8 @@ use std::time::Instant;
 
 use darklua_core::{Configuration, GeneratorParameters, Options, Resources};
 
-mod collector;
-use collector::AcquireParser;
+mod parser;
+use parser::AcquireParser;
 
 mod log;
 use full_moon::visitors::VisitorMut as _;
